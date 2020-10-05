@@ -1,0 +1,10 @@
+{
+  "version": 2,
+  "dgSpecHash": "lzt/dvlLazhbq15E/Y+5jU1H+pacIemLHgrUWlr8vdiTMLrNryC/xBlsWeCGxssFrTkT1+WEOevmhZlJK8i+1Q==",
+  "success": true,
+  "projectFilePath": "C:\\Users\\Sindhu\\Documents\\UF\\SEM3\\DistributedOperatingSystemPrinciples\\samplespace\\ProjectTwo\\gossip-protocol\\gossip-protocol.fsproj",
+  "expectedPackageFiles": [
+    "C:\\Users\\Sindhu\\.nuget\\packages\\fsharp.core\\5.0.0-beta.20504.3\\fsharp.core.5.0.0-beta.20504.3.nupkg.sha512"
+  ],
+  "logs": []
+}
