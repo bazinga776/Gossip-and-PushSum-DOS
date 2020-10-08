@@ -41,33 +41,31 @@ let WorkerActor (mailbox:Actor<_>) =
              
 // Boss - Takes input from command line and spawns the actor pool. 
 let BossActor (mailbox:Actor<_>) =
-    
-    let totalactors = 8L
-    let workerActorsPool = 
-            [1L .. totalactors]
-            |> List.map(fun id -> spawn system (sprintf "Local_%d" id) WorkerActor)
+    let! message = mailbox.Receive()
+    match message with 
+        | Input(actorsNum, top, algo) -> 
+        let totalactors = actorsNum
+        let workerActorsPool = 
+                [1L .. totalactors]
+                |> List.map(fun id -> spawn system (sprintf "Local_%d" id) WorkerActor)
 
-    let workerenum = [|for lp in workerActorsPool -> lp|]
-    let workerSystem = system.ActorOf(Props.Empty.WithRouter(Akka.Routing.RoundRobinGroup(workerenum)))
-    let mutable completed = 0L
+        let workerenum = [|for lp in workerActorsPool -> lp|]
+        let workerSystem = system.ActorOf(Props.Empty.WithRouter(Akka.Routing.RoundRobinGroup(workerenum)))
+        let mutable completed = 0L
 
-    let rec loop () = actor {
-        let! message = mailbox.Receive()
-        match message with 
-        | Input(nodeNum, top, algo) -> 
-            
+        let rec loop () = actor { 
             workerSystem <! BuildTopology(top, workerActorsPool)
-            
-        | Done(complete) ->
-            completed <- completed + 1L
-            printfn "bossactor done"
-            if completed = completed then
-                mailbox.Context.System.Terminate() |> ignore
-        | _ -> ()
-       
-        return! loop()
-    }
-    loop()
+                
+            | Done(complete) ->
+                completed <- completed + 1L
+                printfn "bossactor done"
+                if completed = completed then
+                    mailbox.Context.System.Terminate() |> ignore
+            | _ -> ()
+           
+            return! loop()
+        }
+        loop()
 
 let boss = spawn system "boss" BossActor
 // Input from Command Line
