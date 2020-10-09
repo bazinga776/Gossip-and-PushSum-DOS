@@ -54,9 +54,9 @@ Algorithm is one of gossip, push-sum.
 The amount of time it took to achieve convergence of the algorithm. 
 Time measured using:
 
-... build topology
+build topology
 val b = System.currentTimeMillis;
-..... start protocol
+start protocol
 println(b-System.currentTimeMillis)
 
 ### Actor modeling
