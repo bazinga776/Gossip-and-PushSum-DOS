@@ -11,6 +11,9 @@ type ProjTwo =
     |Initailize of IActorRef[]
     |Algorithm of String
     |ReportMsgRecvd of String
+    |AlgoPushSum of Double
+    |PushSumCalc of Double * Double * Double
+    |PushSumConv of Double * Double
     |TimeCount of int
     |NodeCount of int
 let rnd  = System.Random(1)
@@ -30,6 +33,11 @@ type ActorCount() =
                 printfn "Time for convergence: %i ms" (endTime-startTime)
                 Environment.Exit(0)  
            
+        | PushSumConv (sumValue,weightValue) ->
+            let endTime = System.DateTime.Now.TimeOfDay.Milliseconds
+            printfn "Sum = %f Weight= %f Average=%f" sumValue weightValue (sumValue/weightValue) 
+            printfn "Time for convergence: %i ms" (endTime-startTime)
+            Environment.Exit(0)
         | TimeCount strtTime ->
             startTime <-strtTime
 
@@ -42,6 +50,10 @@ type Node(actorCount: IActorRef, numResend: int, nodeNum: int)=
     inherit Actor()
     let mutable numMsgHeard = 0 
     let mutable  nghbrs:IActorRef[]=[||]
+    
+    let mutable sumCurr= nodeNum |> float
+    let mutable weight = 1.0
+    let mutable termRound = 1
  
     override x.OnReceive(num)=
          
@@ -60,6 +72,32 @@ type Node(actorCount: IActorRef, numResend: int, nodeNum: int)=
                         let index= System.Random().Next(0,nghbrs.Length)
                         nghbrs.[index] <! Algorithm(msg)
 
+         | AlgoPushSum delta -> 
+                        let index= System.Random().Next(0,nghbrs.Length)
+                        sumCurr<- sumCurr/2.0
+                        weight <-weight/2.0
+                        nghbrs.[index] <! PushSumCalc(sumCurr,weight,delta)
+
+         | PushSumCalc (sValue:float,wValue,delta) -> 
+                          let  newsum = sumCurr+sValue
+                          let newweight = weight + wValue
+                          let cal = sumCurr/weight - newsum/newweight |> abs
+                          if(cal >delta) then
+                            termRound<- 0
+                            sumCurr <- sumCurr+sValue
+                            weight <- weight + wValue
+                            sumCurr <- sumCurr/2.0
+                            weight <- weight/2.0
+                            let index= System.Random().Next(0,nghbrs.Length)
+                            nghbrs.[index] <! PushSumCalc(sumCurr,weight,delta)
+                           elif (termRound>=3) then
+                             actorCount<! PushSumConv(sumCurr,weight)
+                           else
+                               sumCurr<- sumCurr/2.0
+                               weight <- weight/2.0
+                               termRound<- termRound+1
+                               let index= System.Random().Next(0,nghbrs.Length)
+                               nghbrs.[index] <! PushSumCalc(sumCurr,weight,delta)
          | _-> ()
 
 
@@ -93,7 +131,10 @@ match topology  with
             actorCount<!TimeCount(System.DateTime.Now.TimeOfDay.Milliseconds)
             printfn "Result for Protocol Gossip"
             buildTopology.[boss]<!Algorithm("Gossip Algorithm for Full Topology")
-
+          else if algorithm="push-sum" then
+            actorCount<!TimeCount(System.DateTime.Now.TimeOfDay.Milliseconds)
+            printfn "Push sum algorithm for Full"
+            buildTopology.[boss]<!AlgoPushSum(10.0 ** -10.0)
       |"line"->
           let buildTopology= Array.zeroCreate (numNodes+1)
           for i in [0..numNodes] do
@@ -107,7 +148,10 @@ match topology  with
             actorCount<!TimeCount(System.DateTime.Now.TimeOfDay.Milliseconds)
             printfn "Result for Protocol Gossip"
             buildTopology.[boss]<!Algorithm("Gossip Algorithm for Line Topology")
-
+          else if algorithm="push-sum" then
+            actorCount<!TimeCount(System.DateTime.Now.TimeOfDay.Milliseconds)
+            printfn "Push sum algorithm for Line"
+            buildTopology.[boss]<!AlgoPushSum(10.0 ** -10.0)
 
       |"2D"->
            let gridSize=int(ceil(sqrt actualNumOfNodes))
@@ -127,6 +171,7 @@ match topology  with
                         nghbrs<-Array.append nghbrs [|buildTopology.[(i-1)*gridSize+j]|]
                     if i+1<gridSize then
                         nghbrs<-(Array.append nghbrs [|buildTopology.[(i+1)*gridSize+j]|])
+                    
                     buildTopology.[i*gridSize+j]<!Initailize(nghbrs)
 
        
@@ -138,9 +183,16 @@ match topology  with
             printfn "Result for Protocol Gossip"
             buildTopology.[boss]<!Algorithm("Gossip Algorithm for 2D Topology")
 
+      
+           else if algorithm="push-sum" then
+            actorCount<!TimeCount(System.DateTime.Now.TimeOfDay.Milliseconds)
+            printfn "Push sum algorithm for 2D"
+            buildTopology.[boss]<!AlgoPushSum(10.0 ** -10.0)
 
       | _-> ()
       
 System.Console.ReadLine()|>ignore
+
+       
 
        
