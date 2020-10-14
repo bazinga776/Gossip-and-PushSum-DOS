@@ -44,7 +44,7 @@ type ActorCount() =
 
         | _ -> ()
 
-type Node(actorCount: IActorRef, neighborlist: int [], nodestoping: int) =
+type Node(actorCount: IActorRef, neighborlist: int [], nodestopping: int) =
     inherit Actor()
     let mutable numMsgHeard = 0
     let mutable nghbrs: IActorRef [] = [||]
@@ -80,13 +80,16 @@ let actorCount =
 
 match topology with
 | "full" ->
-    let mutable neighborlist: int list = []
-    let buildTopology = new Dictionary<int, IActorRef>()
-    for i in [ 0 .. numNodes + 1 ] do
-        neighborlist <- i :: neighborlist //:: operator is used to append to the current list; mutable
-    for i in [ 0 .. numNodes + 1 ] do
-        buildTopology.Add(i, system.ActorOf(Props.Create(typeof<Node>, actorCount, i, neighborlist, 10), "projTwo"))
+    let mutable neighborlist: IActorRef list = [] //list that stores neighbors of current node i
+    let buildTopology = Array.zeroCreate (numNodes + 1) //to store all actor nodes in one place
 
+    for i in [ 0 .. numNodes + 1 ] do
+        buildTopology.[i] <- (spawn system (string i) Node) //The actor function needs to be passed here; fix this
+
+    for i in [ 0 .. numNodes + 1 ] do //list that stores the neighbors for the node i; here all actors are added to the list for every i
+        neighborlist <- buildTopology.[i] :: neighborlist //:: operator is used to append to the current list; mutable
+
+    //to do: call the node function with the list and limit 10
     //buildtopology called on the index of current node, its list of neighbors, total nodes to ping
 
     let boss = System.Random().Next(0, numNodes)
@@ -99,19 +102,21 @@ match topology with
         <! Algorithm("Gossip Protocol")
 
 | "line" -> //actors placed linearly; actor at position i has neighbors at i+1 and i-1; max neighbrs possible 2, min 1
-    let mutable neighborlist: int list = []
-    let buildTopology = new Dictionary<int, IActorRef>()
+    let mutable neighborlist: IActorRef list = [] //list that stores neighbors of current node i
+    let buildTopology = Array.zeroCreate (numNodes + 1) //to store all actor nodes in one place
+
+    for i in [ 0 .. numNodes + 1 ] do
+        buildTopology.[i] <- (spawn system (string i) Node) //the actor function should be passed here; please check this
 
     for i in [ 0 .. numNodes + 1 ] do
         if i = 1 then
-            neighborlist <- i + 1 :: neighborlist
+            neighborlist <- buildTopology.[i + 1] :: neighborlist
         elif i = numNodes then
-            neighborlist <- i - 1 :: neighborlist
+            neighborlist <- buildTopology.[i - 1] :: neighborlist
         else
-            neighborlist <- i - 1 :: neighborlist
-            neighborlist <- i + 1 :: neighborlist
+            neighborlist <- buildTopology.[i - 1] :: neighborlist
+            neighborlist <- buildTopology.[i + 1] :: neighborlist
 
-        buildTopology.Add(i, system.ActorOf(Props.Create(typeof<Node>, actorCount, i, neighborlist, 10), "projTwo"))
         let boss = Random().Next(0, numNodes) //gossip protocol implementation on this
         if protocol = "gossip" then
             actorCount <! NodeCount(numNodes) //ask why it is used
@@ -121,9 +126,13 @@ match topology with
             buildTopology.[boss]
             <! Algorithm("Gossip Protocol")
 
+
 | "2D" ->
-    let mutable neighborlist: int list = []
-    let buildTopology = new Dictionary<int, IActorRef>()
+    let mutable neighborlist: IActorRef list = [] //list that stores neighbors of current node i
+    let buildTopology = Array.zeroCreate (numNodes + 1) //to store all actor nodes in one place
+    for i in [ 0 .. numNodes + 1 ] do
+        buildTopology.[i] <- (spawn system (string i) Node)
+
     let mutable squaredNode = getPerfectSquareNum (float numNodes)
     let mutable nodessqrt = sqrt (float numNodes)
     let mutable intsqrt = int (nodessqrt) //int conversion of nodessqrt
@@ -131,106 +140,105 @@ match topology with
 
     for i in [ 0 .. numNodes + 1 ] do
         if i = 1 then
-            neighborlist <- i + 1 :: neighborlist
-            neighborlist <- i + intsqrt :: neighborlist
+            neighborlist <- buildTopology.[i + 1] :: neighborlist
+            neighborlist <- buildTopology.[i + intsqrt] :: neighborlist
         elif i = intsqrt then
-            neighborlist <- i - 1 :: neighborlist
-            neighborlist <- i + intsqrt :: neighborlist
+            neighborlist <- buildTopology.[i - 1] :: neighborlist
+            neighborlist <- buildTopology.[i + intsqrt] :: neighborlist
 
         elif i = numNodes - intsqrt + 1 then
-            neighborlist <- i + 1 :: neighborlist
-            neighborlist <- i - intsqrt :: neighborlist
+            neighborlist <- buildTopology.[i + 1] :: neighborlist
+            neighborlist <- buildTopology.[i - intsqrt] :: neighborlist
 
         elif i = numNodes then
-            neighborlist <- i - 1 :: neighborlist
-            neighborlist <- i - intsqrt :: neighborlist
+            neighborlist <- buildTopology.[i - 1] :: neighborlist
+            neighborlist <- buildTopology.[i - intsqrt] :: neighborlist
 
         elif i < intsqrt then
-            neighborlist <- i - 1 :: neighborlist
-            neighborlist <- i + 1 :: neighborlist
-            neighborlist <- i + intsqrt :: neighborlist
+            neighborlist <- buildTopology.[i - 1] :: neighborlist
+            neighborlist <- buildTopology.[i + 1] :: neighborlist
+            neighborlist <- buildTopology.[i + intsqrt] :: neighborlist
 
         elif (i > numNodes - intsqrt + 1 && i < numNodes) then
-            neighborlist <- i - 1 :: neighborlist
-            neighborlist <- i + 1 :: neighborlist
-            neighborlist <- i - intsqrt :: neighborlist
+            neighborlist <- buildTopology.[i - 1] :: neighborlist
+            neighborlist <- buildTopology.[i + 1] :: neighborlist
+            neighborlist <- buildTopology.[i - intsqrt] :: neighborlist
 
         if ((i - 1 % intsqrt) = 0) then
-            neighborlist <- i + 1 :: neighborlist
-            neighborlist <- i - intsqrt :: neighborlist
-            neighborlist <- i + intsqrt :: neighborlist
+            neighborlist <- buildTopology.[i + 1] :: neighborlist
+            neighborlist <- buildTopology.[i - intsqrt] :: neighborlist
+            neighborlist <- buildTopology.[i + intsqrt] :: neighborlist
 
         if ((i % intsqrt) = 0) then
-            neighborlist <- i - 1 :: neighborlist
-            neighborlist <- i - intsqrt :: neighborlist
-            neighborlist <- i + intsqrt :: neighborlist
+            neighborlist <- buildTopology.[i - 1] :: neighborlist
+            neighborlist <- buildTopology.[i - intsqrt] :: neighborlist
+            neighborlist <- buildTopology.[i + intsqrt] :: neighborlist
 
         else
-            neighborlist <- i - 1 :: neighborlist
-            neighborlist <- i + 1 :: neighborlist
-            neighborlist <- i - intsqrt :: neighborlist
-            neighborlist <- i + intsqrt :: neighborlist
-
-        buildTopology.Add(i, system.ActorOf(Props.Create(typeof<Node>, actorCount, i, neighborlist, 10), "projTwo"))
+            neighborlist <- buildTopology.[i - 1] :: neighborlist
+            neighborlist <- buildTopology.[i + 1] :: neighborlist
+            neighborlist <- buildTopology.[i - intsqrt] :: neighborlist
+            neighborlist <- buildTopology.[i + intsqrt] :: neighborlist
 
         let boss = Random().Next(0, numNodes) //gossip protocol implementation on this
         if protocol = "gossip" then
-            actorCount <! NodeCount(numNodes) //ask why it is used
+            actorCount <! NodeCount(numNodes)
             actorCount
             <! TimeCount(DateTime.Now.TimeOfDay.Milliseconds)
             printfn "Result for Protocol Gossip"
             buildTopology.[boss]
             <! Algorithm("Gossip Protocol")
 
+
 | "Imp2D" ->
-    let mutable neighborlist: int list = []
-    let buildTopology = new Dictionary<int, IActorRef>()
+    let mutable neighborlist: IActorRef list = [] //list that stores neighbors of current node i
+    let buildTopology = Array.zeroCreate (numNodes + 1) //to store all actor nodes in one place
+    for i in [ 0 .. numNodes + 1 ] do
+        buildTopology.[i] <- (spawn system (string i) Node)
     let mutable squaredNode = getPerfectSquareNum (float numNodes)
     let mutable nodessqrt = sqrt (float numNodes)
     let mutable intsqrt = int (nodessqrt) //int conversion of nodessqrt
     for i in [ 0 .. numNodes + 1 ] do
         if i = 1 then
-            neighborlist <- i + 1 :: neighborlist
-            neighborlist <- i + intsqrt :: neighborlist
+            neighborlist <- buildTopology.[i + 1] :: neighborlist
+            neighborlist <- buildTopology.[i + intsqrt] :: neighborlist
         elif i = intsqrt then
-            neighborlist <- i - 1 :: neighborlist
-            neighborlist <- i + intsqrt :: neighborlist
+            neighborlist <- buildTopology.[i - 1] :: neighborlist
+            neighborlist <- buildTopology.[i + intsqrt] :: neighborlist
 
         elif i = numNodes - intsqrt + 1 then
-            neighborlist <- i + 1 :: neighborlist
-            neighborlist <- i - intsqrt :: neighborlist
+            neighborlist <- buildTopology.[i + 1] :: neighborlist
+            neighborlist <- buildTopology.[i - intsqrt] :: neighborlist
 
         elif i = numNodes then
-            neighborlist <- i - 1 :: neighborlist
-            neighborlist <- i - intsqrt :: neighborlist
+            neighborlist <- buildTopology.[i - 1] :: neighborlist
+            neighborlist <- buildTopology.[i - intsqrt] :: neighborlist
 
         elif i < intsqrt then
-            neighborlist <- i - 1 :: neighborlist
-            neighborlist <- i + 1 :: neighborlist
-            neighborlist <- i + intsqrt :: neighborlist
+            neighborlist <- buildTopology.[i - 1] :: neighborlist
+            neighborlist <- buildTopology.[i + 1] :: neighborlist
+            neighborlist <- buildTopology.[i + intsqrt] :: neighborlist
 
         elif (i > numNodes - intsqrt + 1 && i < numNodes) then
-            neighborlist <- i - 1 :: neighborlist
-            neighborlist <- i + 1 :: neighborlist
-            neighborlist <- i - intsqrt :: neighborlist
+            neighborlist <- buildTopology.[i - 1] :: neighborlist
+            neighborlist <- buildTopology.[i + 1] :: neighborlist
+            neighborlist <- buildTopology.[i - intsqrt] :: neighborlist
 
         if ((i - 1 % intsqrt) = 0) then
-            neighborlist <- i + 1 :: neighborlist
-            neighborlist <- i - intsqrt :: neighborlist
-            neighborlist <- i + intsqrt :: neighborlist
+            neighborlist <- buildTopology.[i + 1] :: neighborlist
+            neighborlist <- buildTopology.[i - intsqrt] :: neighborlist
+            neighborlist <- buildTopology.[i + intsqrt] :: neighborlist
 
         if ((i % intsqrt) = 0) then
-            neighborlist <- i + 1 :: neighborlist
-            neighborlist <- i - intsqrt :: neighborlist
-            neighborlist <- i + intsqrt :: neighborlist
+            neighborlist <- buildTopology.[i + 1] :: neighborlist
+            neighborlist <- buildTopology.[i - intsqrt] :: neighborlist
+            neighborlist <- buildTopology.[i + intsqrt] :: neighborlist
 
         else
-            neighborlist <- i - 1 :: neighborlist
-            neighborlist <- i + 1 :: neighborlist
-            neighborlist <- i - intsqrt :: neighborlist
-            neighborlist <- i + intsqrt :: neighborlist
-
-        buildTopology.Add(i, system.ActorOf(Props.Create(typeof<Node>, actorCount, i, neighborlist, 10), "projTwo"))
+            neighborlist <- buildTopology.[i - 1] :: neighborlist
+            neighborlist <- buildTopology.[i + 1] :: neighborlist
+            neighborlist <- buildTopology.[i - intsqrt] :: neighborlist
+            neighborlist <- buildTopology.[i + intsqrt] :: neighborlist
 
         let boss = Random().Next(0, numNodes) //gossip protocol implementation on this
         if protocol = "gossip" then
@@ -240,72 +248,6 @@ match topology with
             printfn "Result for Protocol Gossip"
             buildTopology.[boss]
             <! Algorithm("Gossip Protocol")
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 | _ -> ()
 
