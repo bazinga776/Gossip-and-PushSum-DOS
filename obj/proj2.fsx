@@ -14,29 +14,34 @@ type ProjTwo =
     |AlgoPushSum of Double
     |PushSumCalc of Double * Double * Double
     |PushSumConv of Double * Double
-    |TimeCount of int
+    |TimeCount of int64
     |NodeCount of int
 let rnd  = System.Random(1)
+let sw = System.Diagnostics.Stopwatch()
 
 type ActorCount() =
     inherit Actor()
     let mutable msgReceived = 0
-    let mutable startTime = 0
+    let mutable startTime = 0L
     let mutable numOfNodes =0
 
     override x.OnReceive(rmsg) = 
         match rmsg :?>ProjTwo with 
         | ReportMsgRecvd message ->
-            let endTime = System.DateTime.Now.TimeOfDay.Milliseconds
+            let endTime = sw.ElapsedMilliseconds
             msgReceived <- msgReceived + 1
             if msgReceived = numOfNodes then
-                printfn "Time for convergence: %i ms" (endTime-startTime)
+                sw.Stop()
+                printfn "Time for convergence: %i ms starttime = %i endtime=%i" (endTime-startTime) (startTime) (endTime)
+                sw.Reset()
                 Environment.Exit(0)  
            
         | PushSumConv (sumValue,weightValue) ->
-            let endTime = System.DateTime.Now.TimeOfDay.Milliseconds
+            let endTime = sw.ElapsedMilliseconds
             printfn "Sum = %f Weight= %f Average=%f" sumValue weightValue (sumValue/weightValue) 
+            sw.Stop()
             printfn "Time for convergence: %i ms" (endTime-startTime)
+            sw.Reset()
             Environment.Exit(0)
         | TimeCount strtTime ->
             startTime <-strtTime
@@ -128,11 +133,13 @@ match topology  with
           let boss = System.Random().Next(0,numNodes)
           if algorithm="gossip" then
             actorCount<!NodeCount(numNodes)
-            actorCount<!TimeCount(System.DateTime.Now.TimeOfDay.Milliseconds)
+            sw.Start()
+            actorCount<!TimeCount(sw.ElapsedMilliseconds)
             printfn "Result for Protocol Gossip"
             buildTopology.[boss]<!Algorithm("Gossip Algorithm for Full Topology")
           else if algorithm="push-sum" then
-            actorCount<!TimeCount(System.DateTime.Now.TimeOfDay.Milliseconds)
+            sw.Start()
+            actorCount<!TimeCount(sw.ElapsedMilliseconds)
             printfn "Push sum algorithm for Full"
             buildTopology.[boss]<!AlgoPushSum(10.0 ** -10.0)
       |"line"->
@@ -145,11 +152,13 @@ match topology  with
           let boss = System.Random().Next(0,numNodes)
           if algorithm="gossip" then
             actorCount<!NodeCount(numNodes)
-            actorCount<!TimeCount(System.DateTime.Now.TimeOfDay.Milliseconds)
+            sw.Start()
+            actorCount<!TimeCount(sw.ElapsedMilliseconds)
             printfn "Result for Protocol Gossip"
             buildTopology.[boss]<!Algorithm("Gossip Algorithm for Line Topology")
           else if algorithm="push-sum" then
-            actorCount<!TimeCount(System.DateTime.Now.TimeOfDay.Milliseconds)
+            sw.Start()
+            actorCount<!TimeCount(sw.ElapsedMilliseconds)
             printfn "Push sum algorithm for Line"
             buildTopology.[boss]<!AlgoPushSum(10.0 ** -10.0)
 
@@ -179,56 +188,21 @@ match topology  with
            let boss = System.Random().Next(0,gridCount-1)  
            if algorithm="gossip" then
             actorCount<!NodeCount(gridCount-1)
-            actorCount<!TimeCount(System.DateTime.Now.TimeOfDay.Milliseconds)
+            sw.Start()
+            actorCount<!TimeCount(sw.ElapsedMilliseconds)
             printfn "Result for Protocol Gossip"
             buildTopology.[boss]<!Algorithm("Gossip Algorithm for 2D Topology")
 
       
            else if algorithm="push-sum" then
-            actorCount<!TimeCount(System.DateTime.Now.TimeOfDay.Milliseconds)
+            sw.Start()
+            actorCount<!TimeCount(sw.ElapsedMilliseconds)
             printfn "Push sum algorithm for 2D"
             buildTopology.[boss]<!AlgoPushSum(10.0 ** -10.0)
 
-      |"Imp2D"->
-           let gridSize=int(ceil(sqrt actualNumOfNodes))
-           let gridCount=gridSize*gridSize
-           let buildTopology= Array.zeroCreate (gridCount)
-           for i in [0..(gridSize*gridSize-1)] do
-              buildTopology.[i]<-system.ActorOf(Props.Create(typeof<Node>,actorCount,10,i+1),"ProjTwo"+string(i))
-           
-           for i in [0..gridSize-1] do
-               for j in [0..gridSize-1] do
-                    let mutable nghbrs:IActorRef[]=[||]
-                    if j+1<gridSize then
-                        nghbrs<-(Array.append nghbrs [|buildTopology.[i*gridSize+j+1]|])
-                    if j-1>=0 then
-                        nghbrs<-Array.append nghbrs [|buildTopology.[i*gridSize+j-1]|]
-                    if i-1>=0 then
-                        nghbrs<-Array.append nghbrs [|buildTopology.[(i-1)*gridSize+j]|]
-                    if i+1<gridSize then
-                        nghbrs<-(Array.append nghbrs [|buildTopology.[(i+1)*gridSize+j]|])
-                    
-                    buildTopology.[i*gridSize+j]<!Initailize(nghbrs)
-
-       
-               
-           let boss = System.Random().Next(0,gridCount-1)  
-           if algorithm="gossip" then
-            actorCount<!NodeCount(gridCount-1)
-            actorCount<!TimeCount(System.DateTime.Now.TimeOfDay.Milliseconds)
-            printfn "Result for Protocol Gossip"
-            buildTopology.[boss]<!Algorithm("Gossip Algorithm for Imp 2D Topology")
-
-      
-           else if algorithm="push-sum" then
-            actorCount<!TimeCount(System.DateTime.Now.TimeOfDay.Milliseconds)
-            printfn "Push sum algorithm for 2D"
-            buildTopology.[boss]<!AlgoPushSum(10.0 ** -10.0)
 
       | _-> ()
       
 System.Console.ReadLine()|>ignore
-
-       
 
        
