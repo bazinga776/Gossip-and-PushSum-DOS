@@ -9,14 +9,14 @@ open System.Collections.Generic
 
 type ProjTwo =
     |Initailize of IActorRef[]
-    |Algorithm of String
-    |ReportMsgRecvd of String
+    |AlgoGossip of String
+    |Rumor of String
     |AlgoPushSum of Double
     |PushSumCalc of Double * Double * Double
     |PushSumConv of Double * Double
     |TimeCount of int64
     |NodeCount of int
-let rnd  = System.Random(1)
+
 let sw = System.Diagnostics.Stopwatch()
 
 type ActorCount() =
@@ -27,7 +27,7 @@ type ActorCount() =
 
     override x.OnReceive(rmsg) = 
         match rmsg :?>ProjTwo with 
-        | ReportMsgRecvd message ->
+        | Rumor message ->
             let endTime = sw.ElapsedMilliseconds
             msgReceived <- msgReceived + 1
             if msgReceived = numOfNodes then
@@ -66,16 +66,16 @@ type Node(actorCount: IActorRef, numResend: int, nodeNum: int)=
          | Initailize aref->
                 nghbrs<-aref
 
-         | Algorithm msg ->
+         | AlgoGossip msg ->
                 numMsgHeard<- numMsgHeard+1
                 
                 if(numMsgHeard=10) then 
-                      actorCount <! ReportMsgRecvd(msg)
+                      actorCount <! Rumor(msg)
                 
                 if(numMsgHeard <= 100) then
                         //to get randomly select next node, we use Random().Next(minValue, maxValue) 
                         let index= System.Random().Next(0,nghbrs.Length)
-                        nghbrs.[index] <! Algorithm(msg)
+                        nghbrs.[index] <! AlgoGossip(msg)
 
          | AlgoPushSum delta -> 
                         let index= System.Random().Next(0,nghbrs.Length)
@@ -136,7 +136,7 @@ match topology  with
             sw.Start()
             actorCount<!TimeCount(sw.ElapsedMilliseconds)
             printfn "Result for Protocol Gossip"
-            buildTopology.[boss]<!Algorithm("Gossip Algorithm for Full Topology")
+            buildTopology.[boss]<!AlgoGossip("Gossip Algorithm for Full Topology")
           else if algorithm="push-sum" then
             sw.Start()
             actorCount<!TimeCount(sw.ElapsedMilliseconds)
@@ -155,7 +155,7 @@ match topology  with
             sw.Start()
             actorCount<!TimeCount(sw.ElapsedMilliseconds)
             printfn "Result for Protocol Gossip"
-            buildTopology.[boss]<!Algorithm("Gossip Algorithm for Line Topology")
+            buildTopology.[boss]<!AlgoGossip("Gossip Algorithm for Line Topology")
           else if algorithm="push-sum" then
             sw.Start()
             actorCount<!TimeCount(sw.ElapsedMilliseconds)
@@ -181,6 +181,7 @@ match topology  with
                     if i+1<gridSize then
                         nghbrs<-(Array.append nghbrs [|buildTopology.[(i+1)*gridSize+j]|])
                     
+                    printfn "i %i, gridsize %i, negbr length %i" (i) (gridSize) (nghbrs.Length)
                     buildTopology.[i*gridSize+j]<!Initailize(nghbrs)
 
        
@@ -191,7 +192,7 @@ match topology  with
             sw.Start()
             actorCount<!TimeCount(sw.ElapsedMilliseconds)
             printfn "Result for Protocol Gossip"
-            buildTopology.[boss]<!Algorithm("Gossip Algorithm for 2D Topology")
+            buildTopology.[boss]<!AlgoGossip("Gossip Algorithm for 2D Topology")
 
       
            else if algorithm="push-sum" then
@@ -200,6 +201,46 @@ match topology  with
             printfn "Push sum algorithm for 2D"
             buildTopology.[boss]<!AlgoPushSum(10.0 ** -10.0)
 
+      |"Imp2D"->
+           let gridSize=int(ceil(sqrt actualNumOfNodes))
+           let gridCount=gridSize*gridSize
+           let buildTopology= Array.zeroCreate (gridCount + 1 )
+           for i in [0..(gridSize*gridSize)] do
+              buildTopology.[i]<-system.ActorOf(Props.Create(typeof<Node>,actorCount,10,i+1),"ProjTwo"+string(i))
+           
+           for i in [0..gridSize-1] do
+               for j in [0..gridSize-1] do
+                    let mutable nghbrs:IActorRef[]=[||]
+                    
+                    if j+1<gridSize then
+                        nghbrs<-(Array.append nghbrs [|buildTopology.[i*gridSize+j+1]|])
+                    if j-1>=0 then
+                        nghbrs<-Array.append nghbrs [|buildTopology.[i*gridSize+j-1]|]
+                    if i-1>=0 then
+                        nghbrs<-Array.append nghbrs [|buildTopology.[(i-1)*gridSize+j]|]
+                    if i+1<gridSize then
+                        nghbrs<-(Array.append nghbrs [|buildTopology.[(i+1)*gridSize+j]|])
+                                          
+                    nghbrs<-(Array.append nghbrs [|buildTopology.[System.Random().Next(0,gridCount-1) ]|])
+                    
+                    buildTopology.[i*gridSize+j]<!Initailize(nghbrs)
+
+       
+              
+           let boss = System.Random().Next(0,gridCount-1)  
+           if algorithm="gossip" then
+            actorCount<!NodeCount(gridCount-1)
+            sw.Start()
+            actorCount<!TimeCount(sw.ElapsedMilliseconds)
+            printfn "Result for Protocol Gossip"
+            buildTopology.[boss]<!AlgoGossip("Gossip Algorithm for Imperfect 2D Topology")
+
+      
+           else if algorithm="push-sum" then
+            sw.Start()
+            actorCount<!TimeCount(sw.ElapsedMilliseconds)
+            printfn "Push sum algorithm for 2D"
+            buildTopology.[boss]<!AlgoPushSum(10.0 ** -10.0)
 
       | _-> ()
       
