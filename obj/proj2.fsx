@@ -19,6 +19,10 @@ type ProjTwo =
 
 let sw = System.Diagnostics.Stopwatch()
 
+let mutable numNodes = int(string (fsi.CommandLineArgs.GetValue 1))
+let topology = string (fsi.CommandLineArgs.GetValue 2)
+let algorithm = string (fsi.CommandLineArgs.GetValue 3)
+
 type ActorCount() =
     inherit Actor()
     let mutable msgReceived = 0
@@ -72,7 +76,7 @@ type Node(actorCount: IActorRef, numResend: int, nodeNum: int)=
                 if(numMsgHeard=10) then 
                       actorCount <! Rumor(msg)
                 
-                if(numMsgHeard <= 100) then
+                if(numMsgHeard <= numNodes * 10) then
                         //to get randomly select next node, we use Random().Next(minValue, maxValue) 
                         let index= System.Random().Next(0,nghbrs.Length)
                         nghbrs.[index] <! AlgoGossip(msg)
@@ -107,9 +111,9 @@ type Node(actorCount: IActorRef, numResend: int, nodeNum: int)=
 
 
 //get input args
-let mutable numNodes = int(string (fsi.CommandLineArgs.GetValue 1))
-let topology = string (fsi.CommandLineArgs.GetValue 2)
-let algorithm = string (fsi.CommandLineArgs.GetValue 3)
+// let mutable numNodes = int(string (fsi.CommandLineArgs.GetValue 1))
+// let topology = string (fsi.CommandLineArgs.GetValue 2)
+// let algorithm = string (fsi.CommandLineArgs.GetValue 3)
 
 let system = ActorSystem.Create("System")
 let mutable actualNumOfNodes=float(numNodes)
